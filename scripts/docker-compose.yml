@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  retrain:
+    build: ../scripts
+    container_name: retrain_service
+    volumes:
+      - ../data:/app/data  # Monter le dossier data
+      - ../artifacts:/app/artifacts  # Monter le dossier artifacts
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: always
