@@ -1,19 +1,18 @@
-FROM python:3.10-slim
+# Utiliser une image Python de base
+FROM python:3.9-slim
 
+# Définir le répertoire de travail dans le conteneur
 WORKDIR /app
 
-# 1) Install system packages needed: git (to clone the Evidently repo)
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Copier les fichiers nécessaires dans l'image Docker
+COPY project.py ./
+COPY requirements.txt ./
 
-# 2) Copy and install your pinned dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+# Installer les dépendances
+RUN pip install --no-cache-dir -r requirements.txt
 
-# 3) Now you can install Evidently from GitHub
-RUN pip install git+https://github.com/evidentlyai/evidently.git@main
+# Exposer le port pour le serveur Evidently
+EXPOSE 8082
 
-# 4) Copy your code and define CMD
-COPY project.py .
-
+# Commande pour exécuter le projet et lancer l'interface web
 CMD python project.py && evidently ui --host 0.0.0.0 --port 8082
