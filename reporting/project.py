@@ -37,7 +37,7 @@ def generate_prod_data():
     for target_class in target_classes:
         pca_values = np.random.uniform(low=-10, high=10, size=(1, 100))  
         
-        if np.random.rand() < 0.999:
+        if np.random.rand() < 0.8:
             prediction = target_class  
         else:
             # 20% chance prediction is different (randomly select a different class)
@@ -167,17 +167,16 @@ def main():
     # Preprocess the data
     ref_data, prod_data, pca_cols = preprocess_data()
 
-    # Generate the synthetic prod_data with all classes
-    prod_data_f = generate_prod_data()
-
-    # Concatenate the original prod_data with the fake prod_data
-    prod_data = pd.concat([prod_data, prod_data_f], ignore_index=True)
-
     # Load the model
     model = load_model()
 
     # Evaluate model performance
     ref_data, prod_data = evaluate_model(ref_data, prod_data, pca_cols, model)
+
+    prod_data_f = generate_prod_data()
+
+    # Concatenate the original prod_data with the fake prod_data
+    prod_data = pd.concat([prod_data, prod_data_f], ignore_index=True)
 
     # Create performance dashboard
     build_custom_dashboard(ref_data, prod_data, pca_cols)
