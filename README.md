@@ -121,7 +121,7 @@ This project involves deploying a predictive machine learning model into product
    If using Docker, start the application with:
    ```bash
    cd serving
-   docker-compose up
+   docker-compose up --build
    ```
    The API will be accessible via `http://localhost:8080`.
 
@@ -129,7 +129,7 @@ This project involves deploying a predictive machine learning model into product
    If using Docker, start the application with:
    ```bash
    cd webapp
-   docker-compose up
+   docker-compose up --build
    ```
    The web application will be accessible via `http://localhost:8081`.
 
@@ -137,15 +137,15 @@ This project involves deploying a predictive machine learning model into product
    If using Docker, start the application with:
    ```bash
    cd reporting
-   docker-compose up
+   docker-compose up --build
    ```
    The reporting will be accessible via `http://localhost:8082`.
 
----
-4. Run retrain model script:
+
+4. **Run retrain model script:**
    ```bash
    cd scripts
-   python retrain_model.py
+   docker-compose up --build
    ```
    A Dockerized monitoring system triggers model retraining every 5 minutes if prod_data.csv has 5 new entries.
 
