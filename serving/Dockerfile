@@ -12,8 +12,14 @@ RUN apt-get update && apt-get install -y \
 
 
 # Copie les fichiers nécessaires
-COPY api.py .
-COPY requirements.txt .
+# COPY api.py .
+# COPY requirements.txt .
+# Créer le dossier scripts
+RUN mkdir -p scripts
+
+COPY serving/requirements.txt ./
+COPY scripts/preprocess_data.py ./scripts/
+COPY serving/api.py ./
 
 # Installe les dépendances
 RUN pip3 install --upgrade pip
