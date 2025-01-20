@@ -1,30 +1,22 @@
-"""
-retrain_model.py
-
-Ce module permet de :
-1. Charger les nouvelles données de production (prod_data.csv) et de référence (ref_data.csv).
-2. Évaluer le modèle actuel XGBoost sur les données de production.
-3. Réentraîner le modèle avec la concaténation des données de référence et de production.
-4. Comparer les performances et remplacer l'ancien modèle si les performances s'améliorent.
-
-Important:
- - ref_data.csv : colonnes 0..99 + 'label'
- - prod_data.csv : colonnes 0..99 + 'label' + 'prediction'
-"""
-
 import os
-import pickle
+import time
 import pandas as pd
 import numpy as np
 from sklearn.metrics import accuracy_score, classification_report
 import xgboost as xgb
 
-def retrain_with_prod_data(
-    ref_data_csv,
-    prod_data_csv,
-    model_path,
-    save_new_model_path=None
-):
+# Define the paths for your reference and production data
+REF_DATA_PATH = "../data/ref_data.csv"
+PROD_DATA_PATH = "../data/prod_data.csv"
+
+# Define the path for your model
+MODEL_PATH = "../artifacts/model_xgb.json"
+
+# Variable pour surveiller la taille précédente du fichier prod_data.csv
+last_row_count = 0
+RETRAIN_THRESHOLD = 5  # Nombre de nouvelles lignes avant réentraînement
+
+def retrain_with_prod_data(ref_data_csv, prod_data_csv, model_path, save_new_model_path=None):
     """
     Lit les données de ref_data.csv et prod_data.csv, évalue le modèle actuel,
     réentraîne le modèle avec les données combinées, et remplace l'ancien modèle
@@ -40,12 +32,11 @@ def retrain_with_prod_data(
     Retourne :
         (old_accuracy, new_accuracy) : tuple de précision avant/après réentraînement
     """
-
-    # 1) Charger le modèle XGBoost existant
+    # Charger le modèle XGBoost existant
     model_xgb = xgb.XGBClassifier()
     model_xgb.load_model(model_path)  # Charger le modèle au format JSON
 
-    # 2) Lire les données
+    # Lire les données
     df_ref = pd.read_csv(ref_data_csv)
     df_prod = pd.read_csv(prod_data_csv)
 
@@ -58,41 +49,39 @@ def retrain_with_prod_data(
     if not all(col in df_prod.columns for col in expected_prod_cols):
         raise ValueError("Les colonnes de prod_data.csv ne correspondent pas au format attendu.")
 
-    # 3) Séparer les features et le label
+    # Séparer les features et le label
     X_ref = df_ref[[str(i) for i in range(100)]].values
     y_ref = df_ref["label"].values
 
     X_prod = df_prod[[str(i) for i in range(100)]].values
     y_prod = df_prod["label"].values
 
-    # 4) Évaluer les performances de l'ancien modèle sur la prod
+    # Évaluer les performances de l'ancien modèle sur la prod
     y_pred_old = model_xgb.predict(X_prod)
     old_accuracy = accuracy_score(y_prod, y_pred_old)
     print(f"\n[INFO] Ancien modèle - Accuracy sur prod_data.csv : {old_accuracy*100:.2f}%")
 
-    # 5) Concaténer ref_data et prod_data pour le nouvel entraînement
+    # Concaténer ref_data et prod_data pour le nouvel entraînement
     X_combined = np.vstack((X_ref, X_prod))
     y_combined = np.concatenate((y_ref, y_prod))
 
-    # 6) Créer un nouveau modèle basé sur les mêmes hyperparamètres sans le paramètre 'device'
+    # Créer un nouveau modèle basé sur les mêmes hyperparamètres
     new_model_xgb = xgb.XGBClassifier(**model_xgb.get_params())
-    
-    # Supprimer le paramètre 'device' s'il existe pour éviter l'erreur
     if 'device' in new_model_xgb.get_params():
-        new_model_xgb.set_params(device='cpu')  # ou 'gpu' si vous utilisez le GPU
+        new_model_xgb.set_params(device='cpu')  # ou 'gpu' si GPU disponible
 
-    # 7) Entraîner le nouveau modèle
+    # Entraîner le nouveau modèle
     print("[INFO] Entraînement du nouveau modèle sur données combinées...")
     new_model_xgb.fit(X_combined, y_combined)
 
-    # 8) Évaluer le nouveau modèle sur les mêmes données de production
+    # Évaluer le nouveau modèle sur les mêmes données de production
     y_pred_new = new_model_xgb.predict(X_prod)
     new_accuracy = accuracy_score(y_prod, y_pred_new)
     print(f"[INFO] Nouveau modèle - Accuracy sur prod_data.csv : {new_accuracy*100:.2f}%")
     print("[INFO] Nouveau modèle - Rapport de classification :")
     print(classification_report(y_prod, y_pred_new))
 
-    # 9) Comparer et remplacer si nécessaire
+    # Comparer et remplacer si nécessaire
     if new_accuracy > old_accuracy:
         print("[INFO] Les performances se sont améliorées, on remplace l'ancien modèle.")
         final_path = save_new_model_path if save_new_model_path else model_path
@@ -102,33 +91,40 @@ def retrain_with_prod_data(
 
     return old_accuracy, new_accuracy
 
-# -------------------------------------------------------------------
-# Exemple d'exécution directe du script
-# -------------------------------------------------------------------
+def monitor_and_retrain():
+    global last_row_count
+
+    while True:
+        try:
+            # Vérifier si prod_data.csv existe
+            if not os.path.exists(PROD_DATA_PATH):
+                print(f"[INFO] {PROD_DATA_PATH} n'existe pas encore. Attente...")
+                time.sleep(60)
+                continue
+
+            # Lire prod_data.csv
+            df_prod = pd.read_csv(PROD_DATA_PATH)
+            current_row_count = df_prod.shape[0]
+
+            # Vérifier si le nombre de nouvelles lignes dépasse le seuil
+            if current_row_count - last_row_count >= RETRAIN_THRESHOLD:
+                print(f"\n[INFO] {current_row_count - last_row_count} nouvelles lignes détectées. Déclenchement du réentraînement...\n")
+                old_acc, new_acc = retrain_with_prod_data(
+                    ref_data_csv=REF_DATA_PATH,
+                    prod_data_csv=PROD_DATA_PATH,
+                    model_path=MODEL_PATH
+                )
+                print(f"[RESULT] Ancien modèle = {old_acc*100:.2f}%, Nouveau modèle = {new_acc*100:.2f}%\n")
+                last_row_count = current_row_count  # Mettre à jour la dernière taille connue
+
+            else:
+                print(f"[INFO] Aucun changement significatif détecté. {current_row_count - last_row_count} lignes ajoutées.")
+            
+        except Exception as e:
+            print(f"[ERROR] Une erreur s'est produite : {e}")
+
+        # Attendre 5 min avant de vérifier à nouveau
+        time.sleep(300)
+
 if __name__ == "__main__":
-    base_dir = "/content"
-    monitoring_dir = os.path.join(base_dir, "monitoring")
-    training_dir = os.path.join(base_dir, "training")
-
-    # Assurez-vous que les dossiers existent
-    os.makedirs(monitoring_dir, exist_ok=True)
-    os.makedirs(training_dir, exist_ok=True)
-
-    ref_data_path = os.path.join(monitoring_dir, "ref_data.csv")
-    prod_data_path = os.path.join(monitoring_dir, "prod_data.csv")
-    model_path = os.path.join(training_dir, "model_xgb.json")  # Changer l'extension
-
-    # Si vous avez un modèle au format .pkl, convertissez-le en .json
-    # Cela doit être fait une seule fois
-    # Exemple de conversion :
-    # with open("/content/model_xgb.pkl", 'rb') as f:
-    #     model_xgb = pickle.load(f)
-    # model_xgb.save_model(model_path)
-
-    old_acc, new_acc = retrain_with_prod_data(
-        ref_data_csv=ref_data_path,
-        prod_data_csv=prod_data_path,
-        model_path=model_path,
-        save_new_model_path=None
-    )
-    print(f"\n[RESULT] Ancien modèle = {old_acc*100:.2f}%, Nouveau modèle = {new_acc*100:.2f}%\n")
+    monitor_and_retrain()
