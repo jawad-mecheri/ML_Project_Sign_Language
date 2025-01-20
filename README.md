@@ -142,6 +142,12 @@ This project involves deploying a predictive machine learning model into product
    The reporting will be accessible via `http://localhost:8082`.
 
 ---
+4. Run retrain model script:
+   ```bash
+   cd scripts
+   python retrain_model.py
+   ```
+   A Dockerized monitoring system triggers model retraining every 5 minutes if prod_data.csv has 5 new entries.
 
 ## **Contributors**
 
