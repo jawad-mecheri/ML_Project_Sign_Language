@@ -1,15 +1,18 @@
-
 import pandas as pd
 from evidently import ColumnMapping
 from evidently.report import Report
-from evidently.metric_preset import DataDriftPreset, ClassificationPreset
+from evidently.metric_preset import DataDriftPreset
+from evidently.ui.workspace import Workspace  # Workspace used here
 
-# for locel  use :
-#REF_DATA_PATH = "./data/ref_data.csv"
-#PROD_DATA_PATH = "./data/prod_data.csv"
+# Define workspace path (local directory)
+WORKSPACE_PATH = "./reporting/evidently_ui_workspace"
+
+# Create a local workspace if it doesn't exist
+workspace = Workspace.create(WORKSPACE_PATH)
+
+# Define the paths for your reference and production data
 REF_DATA_PATH = "../data/ref_data.csv"
 PROD_DATA_PATH = "../data/prod_data.csv"
-
 
 def debug_label_types(df: pd.DataFrame, name: str):
     """
@@ -24,11 +27,9 @@ def debug_label_types(df: pd.DataFrame, name: str):
         if not isinstance(val, str):
             print(f"[DEBUG] {name}: Found non-string value => {repr(val)} (type={type(val)})")
 
-
 def build_static_report():
     """
-    Generate a static HTML file (report.html) comparing reference vs. production data,
-    then launch the Evidently UI on port 8082 (blocks until stopped).
+    Generate a static HTML file (report.html) comparing reference vs. production data.
     """
     # 1. Load data
     ref_data = pd.read_csv(REF_DATA_PATH)
@@ -91,7 +92,7 @@ def build_static_report():
     report = Report(
         metrics=[
             DataDriftPreset(),
-            # ClassificationPreset()  # re-enable if you want classification metrics
+            # Add more metrics like ClassificationPreset if needed
         ]
     )
 
@@ -102,16 +103,20 @@ def build_static_report():
         column_mapping=column_mapping,
     )
 
-    # 11. Save HTML
-    report.save_html("report.html")
+    # 11. Create a project in the workspace if necessary
+    project = workspace.create_project("Data Drift Project")  # Create a new project with a name
+    project.description = "This is a test project to track data drift."
+
+    # 12. Add the report to the workspace under the created project
+    workspace.add_report(project.id, report)  # Add the report to the project using its ID
+
+    # 13. Save HTML report to file
+    report.save_html("./report.html")
     print("[INFO] Static report has been generated: report.html")
 
-
-
 def main():
-
-    # Call the main function to generate the report
+    # Call the function to generate the report
     build_static_report()
-    
+
 if __name__ == "__main__":
     main()

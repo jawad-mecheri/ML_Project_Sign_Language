@@ -1,2 +1,2 @@
 pandas
-evidently
+evidently[ui]

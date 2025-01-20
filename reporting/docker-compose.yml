@@ -1,11 +1,10 @@
 version: '3.8'
 services:
   reporting:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
+    container_name: evidently_reporting
     ports:
       - "8082:8082"
     volumes:
       - ../data:/data
-    container_name: evidently_dashboard
+      - ./reporting/evidently_ui_workspace:/app/reporting/evidently_ui_workspace
